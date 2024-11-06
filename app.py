@@ -1,49 +1,37 @@
-from flask import Flask,request,render_template
+import json
+import pickle
+
+from flask import Flask,request,app,jsonify,url_for,render_template
 import numpy as np
 import pandas as pd
 
-# from pathlib import Path
-# sys.path.append(str(Path(__file__).parent.parent))
-from sklearn.preprocessing import StandardScaler
-from src.pipeline.predict_pipeline import CustomData,PredictPipeline
-
-application=Flask(__name__)
-
-app=application
-
-## Route for a home page
-
+app=Flask(__name__)
+## Load the model
+regmodel=pickle.load(open('regmodel.pkl','rb'))
+scalar=pickle.load(open('scaling.pkl','rb'))
 @app.route('/')
-def index():
-    return render_template('index.html') 
+def home():
+    return render_template('home.html')
 
-@app.route('/predictdata',methods=['GET','POST'])
-def predict_datapoint():
-    if request.method=='GET':
-        return render_template('home.html')
-    else:
-        data=CustomData(
-            gender=request.form.get('gender'),
-            race_ethnicity=request.form.get('ethnicity'),
-            parental_level_of_education=request.form.get('parental_level_of_education'),
-            lunch=request.form.get('lunch'),
-            test_preparation_course=request.form.get('test_preparation_course'),
-            reading_score=float(request.form.get('writing_score')),
-            writing_score=float(request.form.get('reading_score'))
+@app.route('/predict_api',methods=['POST'])
+def predict_api():
+    data=request.json['data']
+    print(data)
+    print(np.array(list(data.values())).reshape(1,-1))
+    new_data=scalar.transform(np.array(list(data.values())).reshape(1,-1))
+    output=regmodel.predict(new_data)
+    print(output[0])
+    return jsonify(output[0])
 
-        )
-        pred_df=data.get_data_as_data_frame()
-        print(pred_df)
-        print("Before Prediction")
+@app.route('/predict',methods=['POST'])
+def predict():
+    data=[float(x) for x in request.form.values()]
+    final_input=scalar.transform(np.array(data).reshape(1,-1))
+    print(final_input)
+    output=regmodel.predict(final_input)[0]
+    return render_template("home.html",prediction_text="The House price prediction is {}".format(output))
 
-        predict_pipeline=PredictPipeline()
-        print("Mid Prediction")
-        results=predict_pipeline.predict(pred_df)
-        print("after Prediction")
-        return render_template('home.html',results=results[0])
-    
+
 
 if __name__=="__main__":
-    app.run(host="0.0.0.0",debug=True)        
-
-
+    app.run(debug=True)
